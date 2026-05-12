@@ -19,11 +19,13 @@ class Department(Base):
 
     parent = relationship(
         "Department",
+        foreign_keys=lambda: [Department.parent_id],
         remote_side=lambda: [Department.id],
         back_populates="children",
     )
     children = relationship(
         "Department",
+        foreign_keys=lambda: [Department.parent_id],
         back_populates="parent",
     )
     employees = relationship("Employee", back_populates="department")

@@ -26,3 +26,4 @@ class Department(Base):
         "Department",
         back_populates="parent",
     )
+    employees = relationship("Employee", back_populates="department")

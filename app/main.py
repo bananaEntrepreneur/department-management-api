@@ -1,7 +1,10 @@
 import uvicorn
 from fastapi import FastAPI
 
+from app.admin import setup_admin
+
 app = FastAPI(title="API for department management")
+setup_admin(app)
 
 
 @app.get("/")

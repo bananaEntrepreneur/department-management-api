@@ -1,15 +1,12 @@
 import uvicorn
 from fastapi import FastAPI
 
+from app.api.main import api_router
 from app.admin import setup_admin
 
 app = FastAPI(title="API for department management")
+app.include_router(api_router)
 setup_admin(app)
-
-
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
 
 
 if __name__ == "__main__":

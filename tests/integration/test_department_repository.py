@@ -92,3 +92,31 @@ async def test_repository_saves_department_changes(sqlite_session_factory) -> No
         assert saved_department.id == department.id
         assert saved_department.name == "Ops"
         assert saved_department.parent_id is None
+
+
+@pytest.mark.asyncio
+async def test_repository_returns_descendants_in_depth_first_order(sqlite_session_factory) -> None:
+    async with sqlite_session_factory() as session:
+        repository = DepartmentRepository(session)
+
+        root = await repository.create(name="Operations", parent_id=None)
+        child = await repository.create(name="Payroll", parent_id=root.id)
+        grandchild = await repository.create(name="Support", parent_id=child.id)
+
+        descendants = await repository.get_descendants(root.id)
+
+        assert [department.id for department in descendants] == [child.id, grandchild.id]
+        assert [department.name for department in descendants] == ["Payroll", "Support"]
+
+
+@pytest.mark.asyncio
+async def test_repository_deletes_department(sqlite_session_factory) -> None:
+    async with sqlite_session_factory() as session:
+        repository = DepartmentRepository(session)
+
+        department = await repository.create(name="Operations", parent_id=None)
+        await repository.delete(department)
+
+        fetched_department = await repository.get_by_id(department.id)
+
+        assert fetched_department is None

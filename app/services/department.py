@@ -51,7 +51,7 @@ class DepartmentService:
             parent_id = payload.parent_id
             if parent_id == department_id:
                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
+                    status_code=status.HTTP_409_CONFLICT,
                     detail="Department cannot be its own parent",
                 )
 
@@ -68,7 +68,7 @@ class DepartmentService:
                 while current_parent is not None:
                     if current_parent.id == department_id:
                         raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
+                            status_code=status.HTTP_409_CONFLICT,
                             detail="Department cannot be moved into its own subtree",
                         )
                     if current_parent.parent_id is None:

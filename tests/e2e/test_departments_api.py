@@ -328,7 +328,7 @@ def test_update_department_rejects_self_parent(client: TestClient) -> None:
         json={"parent_id": department_id},
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 409
     assert response.json() == {"detail": "Department cannot be its own parent"}
 
 
@@ -353,7 +353,7 @@ def test_update_department_rejects_moving_into_own_subtree(client: TestClient) -
         json={"parent_id": grandchild_id},
     )
 
-    assert response.status_code == 400
+    assert response.status_code == 409
     assert response.json() == {"detail": "Department cannot be moved into its own subtree"}
 
 

@@ -276,7 +276,7 @@ async def test_update_department_rejects_self_parent() -> None:
             payload=DepartmentUpdate(parent_id=1),
         )
 
-    assert exc_info.value.status_code == 400
+    assert exc_info.value.status_code == 409
     assert exc_info.value.detail == "Department cannot be its own parent"
     service.repository.save.assert_not_awaited()
 
@@ -315,7 +315,7 @@ async def test_update_department_rejects_moving_into_own_subtree() -> None:
             payload=DepartmentUpdate(parent_id=3),
         )
 
-    assert exc_info.value.status_code == 400
+    assert exc_info.value.status_code == 409
     assert exc_info.value.detail == "Department cannot be moved into its own subtree"
     service.repository.save.assert_not_awaited()
 

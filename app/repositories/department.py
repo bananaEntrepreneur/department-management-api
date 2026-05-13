@@ -18,6 +18,11 @@ class DepartmentRepository:
         await self.db.refresh(department)
         return department
 
+    async def save(self, department: Department) -> Department:
+        await self.db.commit()
+        await self.db.refresh(department)
+        return department
+
     async def get_by_id(self, department_id: int) -> Department | None:
         result = await self.db.execute(
             select(Department).where(Department.id == department_id)

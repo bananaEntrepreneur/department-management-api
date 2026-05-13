@@ -137,3 +137,101 @@ async def test_get_department_details_rejects_missing_department() -> None:
 
     assert exc_info.value.status_code == 404
     assert exc_info.value.detail == "Department not found"
+
+
+@pytest.mark.asyncio
+async def test_update_department_changes_name_and_parent() -> None:
+    service = DepartmentService(db=object())
+    service.repository = AsyncMock()
+
+    root = Department(
+        id=1,
+        name="Operations",
+        parent_id=None,
+        created_at=datetime.now(timezone.utc),
+    )
+    parent = Department(
+        id=2,
+        name="Corporate",
+        parent_id=None,
+        created_at=datetime.now(timezone.utc),
+    )
+
+    service.repository.get_by_id.side_effect = [root, parent]
+    service.repository.save.side_effect = lambda department: department
+
+    from app.schemas.department import DepartmentUpdate
+
+    result = await service.update_department(
+        department_id=1,
+        payload=DepartmentUpdate(name="Ops", parent_id=2),
+    )
+
+    assert result.name == "Ops"
+    assert result.parent_id == 2
+    assert service.repository.get_by_id.await_count == 2
+    service.repository.save.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_department_rejects_self_parent() -> None:
+    service = DepartmentService(db=object())
+    service.repository = AsyncMock()
+    department = Department(
+        id=1,
+        name="Operations",
+        parent_id=None,
+        created_at=datetime.now(timezone.utc),
+    )
+    service.repository.get_by_id.return_value = department
+
+    from app.schemas.department import DepartmentUpdate
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.update_department(
+            department_id=1,
+            payload=DepartmentUpdate(parent_id=1),
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "Department cannot be its own parent"
+    service.repository.save.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_update_department_rejects_moving_into_own_subtree() -> None:
+    service = DepartmentService(db=object())
+    service.repository = AsyncMock()
+
+    root = Department(
+        id=1,
+        name="Operations",
+        parent_id=None,
+        created_at=datetime.now(timezone.utc),
+    )
+    child = Department(
+        id=2,
+        name="Payroll",
+        parent_id=1,
+        created_at=datetime.now(timezone.utc),
+    )
+    grandchild = Department(
+        id=3,
+        name="Support",
+        parent_id=2,
+        created_at=datetime.now(timezone.utc),
+    )
+
+    service.repository.get_by_id.side_effect = [root, grandchild, child, root]
+
+    from app.schemas.department import DepartmentUpdate
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.update_department(
+            department_id=1,
+            payload=DepartmentUpdate(parent_id=3),
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "Department cannot be moved into its own subtree"
+    service.repository.save.assert_not_awaited()

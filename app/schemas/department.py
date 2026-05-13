@@ -5,7 +5,10 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from app.schemas.employee import EmployeeDTO
 
-NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+NonEmptyStr = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=200),
+]
 
 
 class DepartmentDTO(BaseModel):

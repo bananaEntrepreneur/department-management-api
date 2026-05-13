@@ -16,7 +16,7 @@ class Employee(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=False)
     full_name = Column(String(200), nullable=False)
-    position = Column(String(255), nullable=False)
+    position = Column(String(200), nullable=False)
     hired_at = Column(Date, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 

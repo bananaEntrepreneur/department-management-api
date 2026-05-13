@@ -85,13 +85,11 @@ The project uses `uv` to run Python commands.
 uv run pytest
 ```
 
-### Run specific test groups
+### Useful test notes
 
-```bash
-uv run pytest tests/unit
-uv run pytest tests/integration
-uv run pytest tests/e2e
-```
+- `tests/unit` - fast service-level checks with mocks
+- `tests/integration` - repository/database behavior
+- `tests/e2e` - full API flows through FastAPI
 
 ## Migrations
 

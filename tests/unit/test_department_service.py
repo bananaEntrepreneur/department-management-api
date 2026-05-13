@@ -235,3 +235,115 @@ async def test_update_department_rejects_moving_into_own_subtree() -> None:
     assert exc_info.value.status_code == 400
     assert exc_info.value.detail == "Department cannot be moved into its own subtree"
     service.repository.save.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_delete_department_cascade_deletes_subtree_and_employees() -> None:
+    service = DepartmentService(db=object())
+    service.repository = AsyncMock()
+    service.employee_repository = AsyncMock()
+
+    department = Department(
+        id=1,
+        name="Operations",
+        parent_id=None,
+        created_at=datetime.now(timezone.utc),
+    )
+    child = Department(
+        id=2,
+        name="Payroll",
+        parent_id=1,
+        created_at=datetime.now(timezone.utc),
+    )
+    grandchild = Department(
+        id=3,
+        name="Support",
+        parent_id=2,
+        created_at=datetime.now(timezone.utc),
+    )
+
+    service.repository.get_by_id.return_value = department
+    service.repository.get_descendants.return_value = [child, grandchild]
+
+    await service.delete_department(
+        department_id=1,
+        mode="cascade",
+    )
+
+    service.employee_repository.delete_by_department_id.assert_any_await(3)
+    service.employee_repository.delete_by_department_id.assert_any_await(2)
+    service.employee_repository.delete_by_department_id.assert_any_await(1)
+    assert service.employee_repository.delete_by_department_id.await_count == 3
+    service.repository.delete.assert_any_await(grandchild)
+    service.repository.delete.assert_any_await(child)
+    service.repository.delete.assert_any_await(department)
+    assert service.repository.delete.await_count == 3
+
+
+@pytest.mark.asyncio
+async def test_delete_department_reassign_moves_employees_and_promotes_children() -> None:
+    service = DepartmentService(db=object())
+    service.repository = AsyncMock()
+    service.employee_repository = AsyncMock()
+
+    department = Department(
+        id=2,
+        name="Payroll",
+        parent_id=1,
+        created_at=datetime.now(timezone.utc),
+    )
+    target = Department(
+        id=4,
+        name="Finance",
+        parent_id=None,
+        created_at=datetime.now(timezone.utc),
+    )
+    child = Department(
+        id=3,
+        name="Support",
+        parent_id=2,
+        created_at=datetime.now(timezone.utc),
+    )
+
+    service.repository.get_by_id.side_effect = [department, target]
+    service.repository.get_children.return_value = [child]
+    service.repository.save.side_effect = lambda item: item
+
+    await service.delete_department(
+        department_id=2,
+        mode="reassign",
+        reassign_to_department_id=4,
+    )
+
+    service.employee_repository.reassign_department.assert_awaited_once_with(
+        source_department_id=2,
+        target_department_id=4,
+    )
+    assert child.parent_id == 1
+    service.repository.save.assert_awaited_once()
+    service.repository.delete.assert_awaited_once_with(department)
+
+
+@pytest.mark.asyncio
+async def test_delete_department_reassign_requires_target_department() -> None:
+    service = DepartmentService(db=object())
+    service.repository = AsyncMock()
+    service.employee_repository = AsyncMock()
+
+    department = Department(
+        id=1,
+        name="Operations",
+        parent_id=None,
+        created_at=datetime.now(timezone.utc),
+    )
+    service.repository.get_by_id.return_value = department
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.delete_department(
+            department_id=1,
+            mode="reassign",
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "reassign_to_department_id is required when mode=reassign"
+    service.repository.delete.assert_not_awaited()

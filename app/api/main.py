@@ -8,5 +8,5 @@ api_router.include_router(departments_router)
 
 
 @api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
+async def health_check():
+    return {"status": "healty"}

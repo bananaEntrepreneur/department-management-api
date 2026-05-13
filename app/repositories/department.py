@@ -18,6 +18,24 @@ class DepartmentRepository:
         await self.db.refresh(department)
         return department
 
+    async def get_by_parent_and_name(
+        self,
+        parent_id: int | None,
+        name: str,
+        exclude_department_id: int | None = None,
+    ) -> Department | None:
+        statement = select(Department).where(Department.name == name)
+        if parent_id is None:
+            statement = statement.where(Department.parent_id.is_(None))
+        else:
+            statement = statement.where(Department.parent_id == parent_id)
+
+        if exclude_department_id is not None:
+            statement = statement.where(Department.id != exclude_department_id)
+
+        result = await self.db.execute(statement)
+        return result.scalar_one_or_none()
+
     async def save(self, department: Department) -> Department:
         await self.db.commit()
         await self.db.refresh(department)

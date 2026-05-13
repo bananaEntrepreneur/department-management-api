@@ -18,6 +18,8 @@ class DepartmentService:
         self.employee_repository = EmployeeRepository(db)
 
     async def add_department(self, name: str, parent_id: int | None) -> Department:
+        name = name.strip()
+
         if parent_id is not None:
             parent = await self.repository.get_by_id(parent_id)
             if parent is None:
@@ -25,6 +27,11 @@ class DepartmentService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Parent department not found",
                 )
+
+        await self._ensure_department_name_is_available(
+            name=name,
+            parent_id=parent_id,
+        )
 
         return await self.repository.create(name=name, parent_id=parent_id)
 
@@ -74,7 +81,13 @@ class DepartmentService:
             department.parent_id = parent_id
 
         if "name" in payload.model_fields_set and payload.name is not None:
-            department.name = payload.name
+            department.name = payload.name.strip()
+
+        await self._ensure_department_name_is_available(
+            name=department.name,
+            parent_id=department.parent_id,
+            exclude_department_id=department.id,
+        )
 
         return await self.repository.save(department)
 
@@ -179,3 +192,20 @@ class DepartmentService:
             employees=employees,
             children=children,
         )
+
+    async def _ensure_department_name_is_available(
+        self,
+        name: str,
+        parent_id: int | None,
+        exclude_department_id: int | None = None,
+    ) -> None:
+        existing_department = await self.repository.get_by_parent_and_name(
+            parent_id=parent_id,
+            name=name,
+            exclude_department_id=exclude_department_id,
+        )
+        if existing_department is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Department with this name already exists in this parent",
+            )

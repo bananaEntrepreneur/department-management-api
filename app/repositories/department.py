@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.department import Department
+from app.models.employee import Employee
 
 
 class DepartmentRepository:
@@ -22,3 +23,12 @@ class DepartmentRepository:
             select(Department).where(Department.id == department_id)
         )
         return result.scalar_one_or_none()
+
+
+    async def get_employees(self, department_id: int) -> list[Employee]:
+        result = await self.db.execute(
+            select(Employee)
+            .where(Employee.department_id == department_id)
+            .order_by(Employee.created_at, Employee.full_name, Employee.id)
+        )
+        return list(result.scalars().all())

@@ -145,3 +145,38 @@ async def test_repository_deletes_department(sqlite_session_factory) -> None:
         fetched_department = await repository.get_by_id(department.id)
 
         assert fetched_department is None
+
+
+@pytest.mark.asyncio
+async def test_repository_delete_cascades_to_children_and_employees(sqlite_session_factory) -> None:
+    async with sqlite_session_factory() as session:
+        department_repository = DepartmentRepository(session)
+        employee_repository = EmployeeRepository(session)
+
+        root = await department_repository.create(name="Operations", parent_id=None)
+        child = await department_repository.create(name="Payroll", parent_id=root.id)
+        grandchild = await department_repository.create(name="Support", parent_id=child.id)
+
+        root_employee = await employee_repository.create(
+            department_id=root.id,
+            full_name="Alice Root",
+            position="Head",
+            hired_at=None,
+        )
+        child_employee = await employee_repository.create(
+            department_id=child.id,
+            full_name="Bob Child",
+            position="Analyst",
+            hired_at=None,
+        )
+
+        await department_repository.delete(root)
+
+    async with sqlite_session_factory() as verification_session:
+        verification_department_repository = DepartmentRepository(verification_session)
+
+        assert await verification_department_repository.get_by_id(root.id) is None
+        assert await verification_department_repository.get_by_id(child.id) is None
+        assert await verification_department_repository.get_by_id(grandchild.id) is None
+        assert await verification_session.get(type(root_employee), root_employee.id) is None
+        assert await verification_session.get(type(child_employee), child_employee.id) is None

@@ -332,35 +332,16 @@ async def test_delete_department_cascade_deletes_subtree_and_employees() -> None
         parent_id=None,
         created_at=datetime.now(timezone.utc),
     )
-    child = Department(
-        id=2,
-        name="Payroll",
-        parent_id=1,
-        created_at=datetime.now(timezone.utc),
-    )
-    grandchild = Department(
-        id=3,
-        name="Support",
-        parent_id=2,
-        created_at=datetime.now(timezone.utc),
-    )
 
     service.repository.get_by_id.return_value = department
-    service.repository.get_descendants.return_value = [child, grandchild]
 
     await service.delete_department(
         department_id=1,
         mode="cascade",
     )
 
-    service.employee_repository.delete_by_department_id.assert_any_await(3)
-    service.employee_repository.delete_by_department_id.assert_any_await(2)
-    service.employee_repository.delete_by_department_id.assert_any_await(1)
-    assert service.employee_repository.delete_by_department_id.await_count == 3
-    service.repository.delete.assert_any_await(grandchild)
-    service.repository.delete.assert_any_await(child)
-    service.repository.delete.assert_any_await(department)
-    assert service.repository.delete.await_count == 3
+    service.repository.delete.assert_awaited_once_with(department)
+    service.employee_repository.delete_by_department_id.assert_not_awaited()
 
 
 @pytest.mark.asyncio

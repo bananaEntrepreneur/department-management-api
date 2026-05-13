@@ -76,3 +76,19 @@ async def test_repository_returns_employees_in_stable_order(sqlite_session_facto
             "Charlie Brown",
         ]
         assert all(employee.department_id == department.id for employee in employees)
+
+
+@pytest.mark.asyncio
+async def test_repository_saves_department_changes(sqlite_session_factory) -> None:
+    async with sqlite_session_factory() as session:
+        repository = DepartmentRepository(session)
+
+        department = await repository.create(name="Operations", parent_id=None)
+        department.name = "Ops"
+        department.parent_id = None
+
+        saved_department = await repository.save(department)
+
+        assert saved_department.id == department.id
+        assert saved_department.name == "Ops"
+        assert saved_department.parent_id is None

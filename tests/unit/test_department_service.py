@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import HTTPException
 
 from app.models.department import Department
+from app.models.employee import Employee
 from app.services.department import DepartmentService
 
 
@@ -40,3 +42,98 @@ async def test_add_department_requires_existing_parent() -> None:
     assert exc_info.value.detail == "Parent department not found"
     service.repository.get_by_id.assert_awaited_once_with(99)
     service.repository.create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_get_department_details_builds_recursive_tree() -> None:
+    service = DepartmentService(db=object())
+    service.repository = AsyncMock()
+
+    root = Department(
+        id=1,
+        name="Operations",
+        parent_id=None,
+        created_at=datetime.now(timezone.utc),
+    )
+    child = Department(
+        id=2,
+        name="Payroll",
+        parent_id=1,
+        created_at=datetime.now(timezone.utc),
+    )
+    grandchild = Department(
+        id=3,
+        name="Support",
+        parent_id=2,
+        created_at=datetime.now(timezone.utc),
+    )
+
+    service.repository.get_by_id.return_value = root
+    service.repository.get_children.side_effect = [
+        [child],
+        [grandchild],
+        [],
+    ]
+    service.repository.get_employees.side_effect = [
+        [
+            Employee(
+                id=10,
+                department_id=1,
+                full_name="Alice",
+                position="Lead",
+                created_at=datetime.now(timezone.utc),
+            )
+        ],
+        [
+            Employee(
+                id=11,
+                department_id=2,
+                full_name="Bob",
+                position="Analyst",
+                created_at=datetime.now(timezone.utc),
+            )
+        ],
+        [
+            Employee(
+                id=12,
+                department_id=3,
+                full_name="Cara",
+                position="Specialist",
+                created_at=datetime.now(timezone.utc),
+            )
+        ],
+    ]
+
+    result = await service.get_department_details(
+        department_id=1,
+        depth=2,
+        include_employees=True,
+    )
+
+    assert result.department.id == 1
+    assert len(result.employees) == 1
+    assert result.employees[0].full_name == "Alice"
+    assert len(result.children) == 1
+    assert result.children[0].department.id == 2
+    assert len(result.children[0].employees) == 1
+    assert result.children[0].employees[0].full_name == "Bob"
+    assert len(result.children[0].children) == 1
+    assert result.children[0].children[0].department.id == 3
+    assert result.children[0].children[0].employees[0].full_name == "Cara"
+
+
+@pytest.mark.asyncio
+async def test_get_department_details_rejects_missing_department() -> None:
+    service = DepartmentService(db=object())
+    service.repository = AsyncMock()
+    service.repository.get_by_id.return_value = None
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.get_department_details(
+            department_id=404,
+            depth=1,
+            include_employees=True,
+        )
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.detail == "Department not found"

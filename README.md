@@ -15,6 +15,9 @@ The project is built with:
 
 - Create departments
 - Create employees inside a department
+- Read department details with employees and nested subtree
+- Update department name or parent
+- Delete department with cascade or reassignment mode
 - Validate parent department existence when creating records
 - Validate incoming payloads at the schema layer
 
@@ -82,6 +85,14 @@ The project uses `uv` to run Python commands.
 uv run pytest
 ```
 
+### Run specific test groups
+
+```bash
+uv run pytest tests/unit
+uv run pytest tests/integration
+uv run pytest tests/e2e
+```
+
 ## Migrations
 
 Migrations live in the `migrations` directory.
@@ -96,5 +107,28 @@ uv run alembic upgrade head
 
 - `GET /` - basic service check
 - `POST /departments/` - create a department
+- `GET /departments/{id}` - read department details, employees, and subtree
+- `PATCH /departments/{id}` - rename or move a department
+- `DELETE /departments/{id}` - delete a department with `cascade` or `reassign`
 - `POST /departments/{id}/employees/` - create an employee inside a department
 
+## Department Delete Modes
+
+`DELETE /departments/{id}` accepts:
+
+- `mode=cascade` - delete the department, all employees, and all nested departments
+- `mode=reassign` - delete the department and move its employees to another department
+
+When using `mode=reassign`, also pass:
+
+- `reassign_to_department_id` - target department that will receive the employees
+
+Examples:
+
+```bash
+curl -X DELETE "http://localhost:8001/departments/5?mode=cascade"
+```
+
+```bash
+curl -X DELETE "http://localhost:8001/departments/5?mode=reassign&reassign_to_department_id=2"
+```

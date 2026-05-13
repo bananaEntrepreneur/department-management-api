@@ -5,7 +5,7 @@ from starlette import status
 
 from app.core.dependencies import get_department_service, get_employee_service
 from app.schemas.employee import AddEmployeeRequest, AddEmployeeResponse, EmployeeDTO
-from app.schemas.department import DepartmentCreate, DepartmentDTO, DepartmentDetailsDTO
+from app.schemas.department import DepartmentCreate, DepartmentDTO, DepartmentDetailsDTO, DepartmentUpdate
 from app.services.department import DepartmentService
 from app.services.employee import EmployeeService
 
@@ -68,3 +68,21 @@ async def get_department(
         depth=depth,
         include_employees=include_employees,
     )
+
+
+@departments_router.patch(
+    path="/{id}",
+    response_model=DepartmentDTO,
+    status_code=status.HTTP_200_OK,
+    summary="Update department",
+)
+async def update_department(
+        request: DepartmentUpdate,
+        id: Annotated[int, Path(..., ge=1, description="Department ID")],
+        department_service: DepartmentService = Depends(get_department_service),
+) -> DepartmentDTO:
+    department = await department_service.update_department(
+        department_id=id,
+        payload=request,
+    )
+    return DepartmentDTO.model_validate(department)

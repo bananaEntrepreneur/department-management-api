@@ -22,6 +22,11 @@ class DepartmentCreate(BaseModel):
     parent_id: int | None = Field(None, ge=1, description="ID of the parent department")
 
 
+class DepartmentUpdate(BaseModel):
+    name: NonEmptyStr | None = Field(None, description="Name of the department")
+    parent_id: int | None = Field(None, ge=1, description="ID of the parent department")
+
+
 class DepartmentDetailsDTO(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

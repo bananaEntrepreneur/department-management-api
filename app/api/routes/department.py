@@ -1,6 +1,6 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, Response
 from starlette import status
 
 from app.core.dependencies import get_department_service, get_employee_service
@@ -86,3 +86,30 @@ async def update_department(
         payload=request,
     )
     return DepartmentDTO.model_validate(department)
+
+
+@departments_router.delete(
+    path="/{id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete department and his child departments",
+)
+async def delete_department(
+        id: Annotated[int, Path(..., ge=1, description="Department ID")],
+        mode: Annotated[
+            Literal["cascade", "reassign"],
+            Query(
+                description="Deletion mode",
+            ),
+        ] = "cascade",
+        reassign_to_department_id: Annotated[
+            int | None,
+            Query(ge=1, description="Department to move employees to"),
+        ] = None,
+        department_service: DepartmentService = Depends(get_department_service),
+):
+    await department_service.delete_department(
+        department_id=id,
+        mode=mode,
+        reassign_to_department_id=reassign_to_department_id,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -101,6 +101,86 @@ def test_create_employee_for_missing_department_returns_404(client: TestClient) 
     assert response.json() == {"detail": "Department not found"}
 
 
+def test_get_department_details_with_subtree_and_employees(client: TestClient) -> None:
+    root_response = client.post("/departments/", json={"name": "Operations"})
+    root_id = root_response.json()["id"]
+
+    child_response = client.post(
+        "/departments/",
+        json={"name": "Payroll", "parent_id": root_id},
+    )
+    child_id = child_response.json()["id"]
+
+    grandchild_response = client.post(
+        "/departments/",
+        json={"name": "Support", "parent_id": child_id},
+    )
+    grandchild_id = grandchild_response.json()["id"]
+
+    client.post(
+        f"/departments/{root_id}/employees/",
+        json={
+            "full_name": "Alice Root",
+            "position": "Head",
+            "hired_at": "2026-05-01",
+        },
+    )
+    client.post(
+        f"/departments/{child_id}/employees/",
+        json={
+            "full_name": "Bob Child",
+            "position": "Analyst",
+            "hired_at": "2026-05-02",
+        },
+    )
+    client.post(
+        f"/departments/{grandchild_id}/employees/",
+        json={
+            "full_name": "Cara Grandchild",
+            "position": "Specialist",
+            "hired_at": "2026-05-03",
+        },
+    )
+
+    response = client.get(f"/departments/{root_id}?depth=2&include_employees=true")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["department"]["id"] == root_id
+    assert [employee["full_name"] for employee in payload["employees"]] == ["Alice Root"]
+    assert len(payload["children"]) == 1
+
+    child_payload = payload["children"][0]
+    assert child_payload["department"]["id"] == child_id
+    assert [employee["full_name"] for employee in child_payload["employees"]] == ["Bob Child"]
+    assert len(child_payload["children"]) == 1
+
+    grandchild_payload = child_payload["children"][0]
+    assert grandchild_payload["department"]["id"] == grandchild_id
+    assert [employee["full_name"] for employee in grandchild_payload["employees"]] == ["Cara Grandchild"]
+    assert grandchild_payload["children"] == []
+
+
+def test_get_department_details_without_employees(client: TestClient) -> None:
+    root_response = client.post("/departments/", json={"name": "Operations"})
+    root_id = root_response.json()["id"]
+
+    response = client.get(f"/departments/{root_id}?include_employees=false")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["department"]["id"] == root_id
+    assert payload["employees"] == []
+    assert payload["children"] == []
+
+
+def test_get_department_details_returns_404_for_missing_department(client: TestClient) -> None:
+    response = client.get("/departments/999")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Department not found"}
+
+
 def test_create_employee_rejects_short_full_name(client: TestClient) -> None:
     department_response = client.post("/departments/", json={"name": "Operations"})
     department_id = department_response.json()["id"]

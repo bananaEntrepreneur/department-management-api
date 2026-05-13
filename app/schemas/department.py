@@ -3,6 +3,8 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
+from app.schemas.employee import EmployeeDTO
+
 NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
@@ -18,3 +20,14 @@ class DepartmentDTO(BaseModel):
 class DepartmentCreate(BaseModel):
     name: NonEmptyStr = Field(..., description="Name of the department")
     parent_id: int | None = Field(None, ge=1, description="ID of the parent department")
+
+
+class DepartmentDetailsDTO(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    department: DepartmentDTO
+    employees: list[EmployeeDTO] = Field(default_factory=list)
+    children: list["DepartmentDetailsDTO"] = Field(default_factory=list)
+
+
+DepartmentDetailsDTO.model_rebuild()

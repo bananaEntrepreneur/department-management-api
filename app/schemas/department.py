@@ -1,14 +1,9 @@
 from datetime import datetime
-from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.employee import EmployeeDTO
-
-NonEmptyStr = Annotated[
-    str,
-    StringConstraints(strip_whitespace=True, min_length=1, max_length=200),
-]
+from app.schemas.text import NonEmptyText
 
 
 class DepartmentDTO(BaseModel):
@@ -21,12 +16,12 @@ class DepartmentDTO(BaseModel):
 
 
 class DepartmentCreate(BaseModel):
-    name: NonEmptyStr = Field(..., description="Name of the department")
+    name: NonEmptyText = Field(..., description="Name of the department")
     parent_id: int | None = Field(None, ge=1, description="ID of the parent department")
 
 
 class DepartmentUpdate(BaseModel):
-    name: NonEmptyStr | None = Field(None, description="Name of the department")
+    name: NonEmptyText | None = Field(None, description="Name of the department")
     parent_id: int | None = Field(None, ge=1, description="ID of the parent department")
 
 

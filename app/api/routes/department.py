@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Query
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Path
 from starlette import status
 
 from app.core.dependencies import get_department_service, get_employee_service
@@ -34,8 +36,8 @@ async def add_department(
     summary="Add employee in department",
 )
 async def add_employee(
-        id: Query(..., ge=1, description="Department ID"),
         request: AddEmployeeRequest,
+        id: Annotated[int, Path(..., ge=1, description="Department ID")],
         employee_service: EmployeeService = Depends(get_employee_service),
 ) -> AddEmployeeResponse:
     employee = await employee_service.add_employee(

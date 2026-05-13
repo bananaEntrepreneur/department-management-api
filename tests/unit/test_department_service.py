@@ -4,7 +4,16 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import HTTPException
+
+from app.exceptions.department import (
+    DepartmentAlreadyExistsInParentError,
+    DepartmentCannotBeItsOwnParentError,
+    DepartmentCannotBeMovedIntoItsOwnSubtreeError,
+    DepartmentNotFoundError,
+    ParentDepartmentNotFoundError,
+    ReassignDepartmentNotFoundError,
+    ReassignToDepartmentRequiredError,
+)
 
 from app.models.department import Department
 from app.models.employee import Employee
@@ -61,7 +70,7 @@ async def test_add_department_requires_existing_parent() -> None:
     service.repository = AsyncMock()
     service.repository.get_by_id.return_value = None
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(ParentDepartmentNotFoundError) as exc_info:
         await service.add_department(name="Finance", parent_id=99)
 
     assert exc_info.value.status_code == 404
@@ -81,7 +90,7 @@ async def test_add_department_rejects_duplicate_name_in_same_parent() -> None:
         parent_id=None,
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(DepartmentAlreadyExistsInParentError) as exc_info:
         await service.add_department(name="Operations", parent_id=None)
 
     assert exc_info.value.status_code == 409
@@ -173,7 +182,7 @@ async def test_get_department_details_rejects_missing_department() -> None:
     service.repository = AsyncMock()
     service.repository.get_by_id.return_value = None
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(DepartmentNotFoundError) as exc_info:
         await service.get_department_details(
             department_id=404,
             depth=1,
@@ -245,7 +254,7 @@ async def test_update_department_rejects_duplicate_name_in_same_parent() -> None
 
     from app.schemas.department import DepartmentUpdate
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(DepartmentAlreadyExistsInParentError) as exc_info:
         await service.update_department(
             department_id=1,
             payload=DepartmentUpdate(name="Finance"),
@@ -270,7 +279,7 @@ async def test_update_department_rejects_self_parent() -> None:
 
     from app.schemas.department import DepartmentUpdate
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(DepartmentCannotBeItsOwnParentError) as exc_info:
         await service.update_department(
             department_id=1,
             payload=DepartmentUpdate(parent_id=1),
@@ -309,7 +318,7 @@ async def test_update_department_rejects_moving_into_own_subtree() -> None:
 
     from app.schemas.department import DepartmentUpdate
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(DepartmentCannotBeMovedIntoItsOwnSubtreeError) as exc_info:
         await service.update_department(
             department_id=1,
             payload=DepartmentUpdate(parent_id=3),
@@ -402,7 +411,7 @@ async def test_delete_department_reassign_requires_target_department() -> None:
     )
     service.repository.get_by_id.return_value = department
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(ReassignToDepartmentRequiredError) as exc_info:
         await service.delete_department(
             department_id=1,
             mode="reassign",

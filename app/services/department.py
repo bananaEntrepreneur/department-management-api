@@ -2,9 +2,18 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.exceptions.department import (
+    DepartmentAlreadyExistsInParentError,
+    DepartmentCannotBeItsOwnParentError,
+    DepartmentCannotBeMovedIntoItsOwnSubtreeError,
+    DepartmentCannotBeReassignedToItselfError,
+    DepartmentNotFoundError,
+    ParentDepartmentNotFoundError,
+    ReassignDepartmentNotFoundError,
+    ReassignToDepartmentRequiredError,
+)
 from app.models.department import Department
 from app.repositories.department import DepartmentRepository
 from app.repositories.employee import EmployeeRepository
@@ -23,10 +32,7 @@ class DepartmentService:
         if parent_id is not None:
             parent = await self.repository.get_by_id(parent_id)
             if parent is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Parent department not found",
-                )
+                raise ParentDepartmentNotFoundError()
 
         await self._ensure_department_name_is_available(
             name=name,
@@ -42,35 +48,23 @@ class DepartmentService:
     ) -> Department:
         department = await self.repository.get_by_id(department_id)
         if department is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Department not found",
-            )
+            raise DepartmentNotFoundError()
 
         if "parent_id" in payload.model_fields_set:
             parent_id = payload.parent_id
             if parent_id == department_id:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Department cannot be its own parent",
-                )
+                raise DepartmentCannotBeItsOwnParentError()
 
             if parent_id is not None:
                 parent = await self.repository.get_by_id(parent_id)
                 if parent is None:
-                    raise HTTPException(
-                        status_code=status.HTTP_404_NOT_FOUND,
-                        detail="Parent department not found",
-                    )
+                    raise ParentDepartmentNotFoundError()
 
                 visited_ids: set[int] = set()
                 current_parent = parent
                 while current_parent is not None:
                     if current_parent.id == department_id:
-                        raise HTTPException(
-                            status_code=status.HTTP_409_CONFLICT,
-                            detail="Department cannot be moved into its own subtree",
-                        )
+                        raise DepartmentCannotBeMovedIntoItsOwnSubtreeError()
                     if current_parent.parent_id is None:
                         break
                     if current_parent.id in visited_ids:
@@ -99,33 +93,21 @@ class DepartmentService:
     ) -> None:
         department = await self.repository.get_by_id(department_id)
         if department is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Department not found",
-            )
+            raise DepartmentNotFoundError()
 
         if mode == "cascade":
             await self.repository.delete(department)
             return
 
         if reassign_to_department_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="reassign_to_department_id is required when mode=reassign",
-            )
+            raise ReassignToDepartmentRequiredError()
 
         if reassign_to_department_id == department_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Department cannot be reassigned to itself",
-            )
+            raise DepartmentCannotBeReassignedToItselfError()
 
         target_department = await self.repository.get_by_id(reassign_to_department_id)
         if target_department is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Reassign department not found",
-            )
+            raise ReassignDepartmentNotFoundError()
 
         await self.employee_repository.reassign_department(
             source_department_id=department.id,
@@ -146,10 +128,7 @@ class DepartmentService:
     ) -> DepartmentDetailsDTO:
         department = await self.repository.get_by_id(department_id)
         if department is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Department not found",
-            )
+            raise DepartmentNotFoundError()
 
         return await self._build_department_details(
             department=department,
@@ -199,7 +178,4 @@ class DepartmentService:
             exclude_department_id=exclude_department_id,
         )
         if existing_department is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Department with this name already exists in this parent",
-            )
+            raise DepartmentAlreadyExistsInParentError()

@@ -24,11 +24,18 @@ class DepartmentRepository:
         )
         return result.scalar_one_or_none()
 
-
     async def get_employees(self, department_id: int) -> list[Employee]:
         result = await self.db.execute(
             select(Employee)
             .where(Employee.department_id == department_id)
             .order_by(Employee.created_at, Employee.full_name, Employee.id)
+        )
+        return list(result.scalars().all())
+
+    async def get_children(self, parent_id: int) -> list[Department]:
+        result = await self.db.execute(
+            select(Department)
+            .where(Department.parent_id == parent_id)
+            .order_by(Department.created_at, Department.name, Department.id)
         )
         return list(result.scalars().all())

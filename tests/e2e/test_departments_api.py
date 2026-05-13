@@ -94,7 +94,7 @@ def test_create_employee_for_department(client: TestClient) -> None:
         f"/departments/{department_id}/employees/",
         json={
             "full_name": "  Ada Lovelace  ",
-            "position": "Analyst",
+            "position": "  Analyst  ",
             "hired_at": "2026-05-01",
         },
     )
@@ -122,6 +122,38 @@ def test_create_employee_for_missing_department_returns_404(client: TestClient) 
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Department not found"}
+
+
+def test_create_employee_rejects_empty_position(client: TestClient) -> None:
+    department_response = client.post("/departments/", json={"name": "Operations"})
+    department_id = department_response.json()["id"]
+
+    response = client.post(
+        f"/departments/{department_id}/employees/",
+        json={
+            "full_name": "Ada Lovelace",
+            "position": "   ",
+            "hired_at": None,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_create_employee_rejects_too_long_position(client: TestClient) -> None:
+    department_response = client.post("/departments/", json={"name": "Operations"})
+    department_id = department_response.json()["id"]
+
+    response = client.post(
+        f"/departments/{department_id}/employees/",
+        json={
+            "full_name": "Ada Lovelace",
+            "position": "A" * 201,
+            "hired_at": None,
+        },
+    )
+
+    assert response.status_code == 422
 
 
 def test_get_department_details_with_subtree_and_employees(client: TestClient) -> None:

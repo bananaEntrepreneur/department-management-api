@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from app.models.department import Department
 from app.models.employee import Employee
@@ -52,11 +53,30 @@ async def test_add_employee_creates_employee_for_existing_department() -> None:
 def test_add_employee_request_trims_full_name_and_accepts_single_character() -> None:
     request = AddEmployeeRequest(
         full_name="  A  ",
-        position="Analyst",
+        position="  Analyst  ",
         hired_at=None,
     )
 
     assert request.full_name == "A"
+    assert request.position == "Analyst"
+
+
+def test_add_employee_request_rejects_empty_position() -> None:
+    with pytest.raises(ValidationError):
+        AddEmployeeRequest(
+            full_name="Ada Lovelace",
+            position="   ",
+            hired_at=None,
+        )
+
+
+def test_add_employee_request_rejects_too_long_position() -> None:
+    with pytest.raises(ValidationError):
+        AddEmployeeRequest(
+            full_name="Ada Lovelace",
+            position="A" * 201,
+            hired_at=None,
+        )
 
 
 @pytest.mark.asyncio

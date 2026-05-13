@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.exceptions.employee import EmployeeDepartmentNotFoundError
 from app.models.employee import Employee
 from app.repositories.department import DepartmentRepository
 from app.repositories.employee import EmployeeRepository
@@ -24,10 +24,7 @@ class EmployeeService:
     ) -> Employee:
         department = await self.department_repository.get_by_id(department_id)
         if department is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Department not found",
-            )
+            raise EmployeeDepartmentNotFoundError()
 
         return await self.employee_repository.create(
             department_id=department_id,

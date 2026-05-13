@@ -4,9 +4,9 @@ from datetime import date
 from unittest.mock import AsyncMock
 
 import pytest
-from fastapi import HTTPException
 from pydantic import ValidationError
 
+from app.exceptions.employee import EmployeeDepartmentNotFoundError
 from app.models.department import Department
 from app.models.employee import Employee
 from app.schemas.employee import AddEmployeeRequest
@@ -86,7 +86,7 @@ async def test_add_employee_rejects_missing_department() -> None:
     service.employee_repository = AsyncMock()
     service.department_repository.get_by_id.return_value = None
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(EmployeeDepartmentNotFoundError) as exc_info:
         await service.add_employee(
             department_id=999,
             full_name="Ada Lovelace",

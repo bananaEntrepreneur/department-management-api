@@ -3,9 +3,11 @@ from fastapi import FastAPI
 
 from app.api.main import api_router
 from app.admin import setup_admin
+from app.exceptions import register_exception_handlers
 
 app = FastAPI(title="API for department management")
 app.include_router(api_router)
+register_exception_handlers(app)
 setup_admin(app)
 
 

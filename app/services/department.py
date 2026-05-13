@@ -105,12 +105,6 @@ class DepartmentService:
             )
 
         if mode == "cascade":
-            descendants = await self.repository.get_descendants(department.id)
-            for descendant in reversed(descendants):
-                await self.employee_repository.delete_by_department_id(descendant.id)
-                await self.repository.delete(descendant)
-
-            await self.employee_repository.delete_by_department_id(department.id)
             await self.repository.delete(department)
             return
 

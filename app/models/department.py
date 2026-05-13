@@ -14,7 +14,7 @@ class Department(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(200), nullable=False)
-    parent_id = Column(Integer, ForeignKey("departments.id", ondelete="SET NULL"), nullable=True)
+    parent_id = Column(Integer, ForeignKey("departments.id", ondelete="CASCADE"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     parent = relationship(
@@ -27,5 +27,13 @@ class Department(Base):
         "Department",
         foreign_keys=lambda: [Department.parent_id],
         back_populates="parent",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        single_parent=True,
     )
-    employees = relationship("Employee", back_populates="department")
+    employees = relationship(
+        "Employee",
+        back_populates="department",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )

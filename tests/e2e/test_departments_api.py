@@ -272,6 +272,111 @@ def test_update_department_rejects_moving_into_own_subtree(client: TestClient) -
     assert response.json() == {"detail": "Department cannot be moved into its own subtree"}
 
 
+def test_delete_department_cascade_removes_tree_and_employees(client: TestClient) -> None:
+    root_response = client.post("/departments/", json={"name": "Operations"})
+    root_id = root_response.json()["id"]
+
+    child_response = client.post(
+        "/departments/",
+        json={"name": "Payroll", "parent_id": root_id},
+    )
+    child_id = child_response.json()["id"]
+
+    grandchild_response = client.post(
+        "/departments/",
+        json={"name": "Support", "parent_id": child_id},
+    )
+    grandchild_id = grandchild_response.json()["id"]
+
+    client.post(
+        f"/departments/{root_id}/employees/",
+        json={
+            "full_name": "Alice Root",
+            "position": "Head",
+            "hired_at": "2026-05-01",
+        },
+    )
+    client.post(
+        f"/departments/{child_id}/employees/",
+        json={
+            "full_name": "Bob Child",
+            "position": "Analyst",
+            "hired_at": "2026-05-02",
+        },
+    )
+
+    response = client.delete(f"/departments/{root_id}?mode=cascade")
+
+    assert response.status_code == 204
+    assert client.get(f"/departments/{root_id}").status_code == 404
+    assert client.get(f"/departments/{child_id}").status_code == 404
+    assert client.get(f"/departments/{grandchild_id}").status_code == 404
+
+
+def test_delete_department_reassign_moves_employees_and_promotes_children(client: TestClient) -> None:
+    root_response = client.post("/departments/", json={"name": "Operations"})
+    root_id = root_response.json()["id"]
+
+    target_response = client.post("/departments/", json={"name": "Finance"})
+    target_id = target_response.json()["id"]
+
+    child_response = client.post(
+        "/departments/",
+        json={"name": "Payroll", "parent_id": root_id},
+    )
+    child_id = child_response.json()["id"]
+
+    grandchild_response = client.post(
+        "/departments/",
+        json={"name": "Support", "parent_id": child_id},
+    )
+    grandchild_id = grandchild_response.json()["id"]
+
+    client.post(
+        f"/departments/{child_id}/employees/",
+        json={
+            "full_name": "Bob Child",
+            "position": "Analyst",
+            "hired_at": "2026-05-02",
+        },
+    )
+
+    response = client.delete(
+        f"/departments/{child_id}?mode=reassign&reassign_to_department_id={target_id}"
+    )
+
+    assert response.status_code == 204
+
+    target_payload = client.get(f"/departments/{target_id}?depth=1").json()
+    assert [employee["full_name"] for employee in target_payload["employees"]] == ["Bob Child"]
+
+    root_payload = client.get(f"/departments/{root_id}?depth=1").json()
+    assert [child["department"]["id"] for child in root_payload["children"]] == [grandchild_id]
+    assert root_payload["children"][0]["department"]["parent_id"] == root_id
+
+
+def test_delete_department_requires_reassign_target_when_mode_is_reassign(client: TestClient) -> None:
+    department_response = client.post("/departments/", json={"name": "Operations"})
+    department_id = department_response.json()["id"]
+
+    response = client.delete(f"/departments/{department_id}?mode=reassign")
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "reassign_to_department_id is required when mode=reassign"}
+
+
+def test_delete_department_rejects_missing_reassign_target_department(client: TestClient) -> None:
+    department_response = client.post("/departments/", json={"name": "Operations"})
+    department_id = department_response.json()["id"]
+
+    response = client.delete(
+        f"/departments/{department_id}?mode=reassign&reassign_to_department_id=999"
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Reassign department not found"}
+
+
 def test_create_employee_rejects_short_full_name(client: TestClient) -> None:
     department_response = client.post("/departments/", json={"name": "Operations"})
     department_id = department_response.json()["id"]

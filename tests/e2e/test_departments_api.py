@@ -93,7 +93,7 @@ def test_create_employee_for_department(client: TestClient) -> None:
     response = client.post(
         f"/departments/{department_id}/employees/",
         json={
-            "full_name": "Ada Lovelace",
+            "full_name": "  Ada Lovelace  ",
             "position": "Analyst",
             "hired_at": "2026-05-01",
         },
@@ -430,14 +430,30 @@ def test_delete_department_rejects_missing_reassign_target_department(client: Te
     assert response.json() == {"detail": "Reassign department not found"}
 
 
-def test_create_employee_rejects_short_full_name(client: TestClient) -> None:
+def test_create_employee_rejects_empty_full_name(client: TestClient) -> None:
     department_response = client.post("/departments/", json={"name": "Operations"})
     department_id = department_response.json()["id"]
 
     response = client.post(
         f"/departments/{department_id}/employees/",
         json={
-            "full_name": "A",
+            "full_name": "   ",
+            "position": "Analyst",
+            "hired_at": None,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_create_employee_rejects_too_long_full_name(client: TestClient) -> None:
+    department_response = client.post("/departments/", json={"name": "Operations"})
+    department_id = department_response.json()["id"]
+
+    response = client.post(
+        f"/departments/{department_id}/employees/",
+        json={
+            "full_name": "A" * 201,
             "position": "Analyst",
             "hired_at": None,
         },

@@ -8,6 +8,7 @@ from fastapi import HTTPException
 
 from app.models.department import Department
 from app.models.employee import Employee
+from app.schemas.employee import AddEmployeeRequest
 from app.services.employee import EmployeeService
 
 
@@ -46,6 +47,16 @@ async def test_add_employee_creates_employee_for_existing_department() -> None:
         position="Analyst",
         hired_at=date(2026, 5, 1),
     )
+
+
+def test_add_employee_request_trims_full_name_and_accepts_single_character() -> None:
+    request = AddEmployeeRequest(
+        full_name="  A  ",
+        position="Analyst",
+        hired_at=None,
+    )
+
+    assert request.full_name == "A"
 
 
 @pytest.mark.asyncio

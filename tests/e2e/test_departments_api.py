@@ -181,6 +181,97 @@ def test_get_department_details_returns_404_for_missing_department(client: TestC
     assert response.json() == {"detail": "Department not found"}
 
 
+def test_update_department_moves_it_to_another_parent_and_renames(client: TestClient) -> None:
+    root_response = client.post("/departments/", json={"name": "Operations"})
+    root_id = root_response.json()["id"]
+
+    new_parent_response = client.post("/departments/", json={"name": "Corporate"})
+    new_parent_id = new_parent_response.json()["id"]
+
+    child_response = client.post(
+        "/departments/",
+        json={"name": "Payroll", "parent_id": root_id},
+    )
+    child_id = child_response.json()["id"]
+
+    response = client.patch(
+        f"/departments/{child_id}",
+        json={"name": "Payroll & Benefits", "parent_id": new_parent_id},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["id"] == child_id
+    assert payload["name"] == "Payroll & Benefits"
+    assert payload["parent_id"] == new_parent_id
+
+    subtree_response = client.get(f"/departments/{new_parent_id}?depth=1")
+    subtree_payload = subtree_response.json()
+    assert [child["department"]["id"] for child in subtree_payload["children"]] == [child_id]
+
+
+def test_update_department_can_detach_from_parent(client: TestClient) -> None:
+    root_response = client.post("/departments/", json={"name": "Operations"})
+    root_id = root_response.json()["id"]
+
+    child_response = client.post(
+        "/departments/",
+        json={"name": "Payroll", "parent_id": root_id},
+    )
+    child_id = child_response.json()["id"]
+
+    response = client.patch(
+        f"/departments/{child_id}",
+        json={"parent_id": None},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["id"] == child_id
+    assert payload["parent_id"] is None
+
+    root_children_response = client.get(f"/departments/{root_id}?depth=1")
+    assert root_children_response.json()["children"] == []
+
+
+def test_update_department_rejects_self_parent(client: TestClient) -> None:
+    department_response = client.post("/departments/", json={"name": "Operations"})
+    department_id = department_response.json()["id"]
+
+    response = client.patch(
+        f"/departments/{department_id}",
+        json={"parent_id": department_id},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Department cannot be its own parent"}
+
+
+def test_update_department_rejects_moving_into_own_subtree(client: TestClient) -> None:
+    root_response = client.post("/departments/", json={"name": "Operations"})
+    root_id = root_response.json()["id"]
+
+    child_response = client.post(
+        "/departments/",
+        json={"name": "Payroll", "parent_id": root_id},
+    )
+    child_id = child_response.json()["id"]
+
+    grandchild_response = client.post(
+        "/departments/",
+        json={"name": "Support", "parent_id": child_id},
+    )
+    grandchild_id = grandchild_response.json()["id"]
+
+    response = client.patch(
+        f"/departments/{root_id}",
+        json={"parent_id": grandchild_id},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Department cannot be moved into its own subtree"}
+
+
 def test_create_employee_rejects_short_full_name(client: TestClient) -> None:
     department_response = client.post("/departments/", json={"name": "Operations"})
     department_id = department_response.json()["id"]

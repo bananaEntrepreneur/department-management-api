@@ -32,7 +32,7 @@ def client(sqlite_session_factory):
 
 
 def test_create_department_and_child_department(client: TestClient) -> None:
-    root_response = client.post("/departments/", json={"name": "Operations"})
+    root_response = client.post("/departments/", json={"name": "  Operations  "})
 
     assert root_response.status_code == 201
     root_payload = root_response.json()
@@ -51,6 +51,29 @@ def test_create_department_and_child_department(client: TestClient) -> None:
     assert child_payload["name"] == "Payroll"
     assert child_payload["parent_id"] == root_payload["id"]
     assert child_payload["id"] > root_payload["id"]
+
+
+def test_create_department_rejects_duplicate_name_within_same_parent(client: TestClient) -> None:
+    root_response = client.post("/departments/", json={"name": "Operations"})
+    root_id = root_response.json()["id"]
+
+    first_response = client.post(
+        "/departments/",
+        json={"name": "  Backend  ", "parent_id": root_id},
+    )
+
+    assert first_response.status_code == 201
+    assert first_response.json()["name"] == "Backend"
+
+    response = client.post(
+        "/departments/",
+        json={"name": "Backend", "parent_id": root_id},
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": "Department with this name already exists in this parent",
+    }
 
 
 def test_create_department_with_missing_parent_returns_404(client: TestClient) -> None:
@@ -208,6 +231,36 @@ def test_update_department_moves_it_to_another_parent_and_renames(client: TestCl
     subtree_response = client.get(f"/departments/{new_parent_id}?depth=1")
     subtree_payload = subtree_response.json()
     assert [child["department"]["id"] for child in subtree_payload["children"]] == [child_id]
+
+
+def test_update_department_rejects_duplicate_name_within_same_parent(client: TestClient) -> None:
+    root_response = client.post("/departments/", json={"name": "Operations"})
+    root_id = root_response.json()["id"]
+
+    first_child_response = client.post(
+        "/departments/",
+        json={"name": "Backend", "parent_id": root_id},
+    )
+    first_child_id = first_child_response.json()["id"]
+
+    second_child_response = client.post(
+        "/departments/",
+        json={"name": "Platform", "parent_id": root_id},
+    )
+    second_child_id = second_child_response.json()["id"]
+
+    response = client.patch(
+        f"/departments/{second_child_id}",
+        json={"name": "Backend"},
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": "Department with this name already exists in this parent",
+    }
+
+    assert client.get(f"/departments/{first_child_id}").status_code == 200
+    assert client.get(f"/departments/{second_child_id}").status_code == 200
 
 
 def test_update_department_can_detach_from_parent(client: TestClient) -> None:

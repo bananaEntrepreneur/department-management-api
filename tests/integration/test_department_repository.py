@@ -45,6 +45,31 @@ async def test_repository_returns_children_in_stable_order(sqlite_session_factor
 
 
 @pytest.mark.asyncio
+async def test_repository_finds_department_by_parent_and_name(sqlite_session_factory) -> None:
+    async with sqlite_session_factory() as session:
+        repository = DepartmentRepository(session)
+
+        root = await repository.create(name="Operations", parent_id=None)
+        child = await repository.create(name="Backend", parent_id=root.id)
+
+        found_root = await repository.get_by_parent_and_name(parent_id=None, name="Operations")
+        found_child = await repository.get_by_parent_and_name(
+            parent_id=root.id,
+            name="Backend",
+        )
+        missing_department = await repository.get_by_parent_and_name(
+            parent_id=root.id,
+            name="Platform",
+        )
+
+        assert found_root is not None
+        assert found_root.id == root.id
+        assert found_child is not None
+        assert found_child.id == child.id
+        assert missing_department is None
+
+
+@pytest.mark.asyncio
 async def test_repository_returns_employees_in_stable_order(sqlite_session_factory) -> None:
     async with sqlite_session_factory() as session:
         department_repository = DepartmentRepository(session)

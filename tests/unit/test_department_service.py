@@ -17,12 +17,38 @@ async def test_add_department_creates_root_department() -> None:
     service.repository = AsyncMock()
 
     created_department = Department(id=1, name="Operations", parent_id=None)
+    service.repository.get_by_parent_and_name.return_value = None
     service.repository.create.return_value = created_department
 
     result = await service.add_department(name="Operations", parent_id=None)
 
     assert result is created_department
     service.repository.get_by_id.assert_not_awaited()
+    service.repository.get_by_parent_and_name.assert_awaited_once_with(
+        parent_id=None,
+        name="Operations",
+        exclude_department_id=None,
+    )
+    service.repository.create.assert_awaited_once_with(
+        name="Operations",
+        parent_id=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_add_department_trims_name_before_creating() -> None:
+    service = DepartmentService(db=object())
+    service.repository = AsyncMock()
+    service.repository.get_by_parent_and_name.return_value = None
+    service.repository.create.return_value = Department(
+        id=1,
+        name="Operations",
+        parent_id=None,
+    )
+
+    result = await service.add_department(name="  Operations  ", parent_id=None)
+
+    assert result.name == "Operations"
     service.repository.create.assert_awaited_once_with(
         name="Operations",
         parent_id=None,
@@ -41,6 +67,25 @@ async def test_add_department_requires_existing_parent() -> None:
     assert exc_info.value.status_code == 404
     assert exc_info.value.detail == "Parent department not found"
     service.repository.get_by_id.assert_awaited_once_with(99)
+    service.repository.create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_add_department_rejects_duplicate_name_in_same_parent() -> None:
+    service = DepartmentService(db=object())
+    service.repository = AsyncMock()
+
+    service.repository.get_by_parent_and_name.return_value = Department(
+        id=2,
+        name="Operations",
+        parent_id=None,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.add_department(name="Operations", parent_id=None)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == "Department with this name already exists in this parent"
     service.repository.create.assert_not_awaited()
 
 
@@ -158,6 +203,7 @@ async def test_update_department_changes_name_and_parent() -> None:
     )
 
     service.repository.get_by_id.side_effect = [root, parent]
+    service.repository.get_by_parent_and_name.return_value = None
     service.repository.save.side_effect = lambda department: department
 
     from app.schemas.department import DepartmentUpdate
@@ -170,7 +216,44 @@ async def test_update_department_changes_name_and_parent() -> None:
     assert result.name == "Ops"
     assert result.parent_id == 2
     assert service.repository.get_by_id.await_count == 2
+    service.repository.get_by_parent_and_name.assert_awaited_once_with(
+        parent_id=2,
+        name="Ops",
+        exclude_department_id=1,
+    )
     service.repository.save.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_update_department_rejects_duplicate_name_in_same_parent() -> None:
+    service = DepartmentService(db=object())
+    service.repository = AsyncMock()
+
+    department = Department(
+        id=1,
+        name="Operations",
+        parent_id=None,
+        created_at=datetime.now(timezone.utc),
+    )
+    service.repository.get_by_id.return_value = department
+    service.repository.get_by_parent_and_name.return_value = Department(
+        id=2,
+        name="Finance",
+        parent_id=None,
+        created_at=datetime.now(timezone.utc),
+    )
+
+    from app.schemas.department import DepartmentUpdate
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.update_department(
+            department_id=1,
+            payload=DepartmentUpdate(name="Finance"),
+        )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == "Department with this name already exists in this parent"
+    service.repository.save.assert_not_awaited()
 
 
 @pytest.mark.asyncio

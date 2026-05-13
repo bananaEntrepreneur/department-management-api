@@ -2,6 +2,9 @@ FROM python:3.12.9-slim AS builder
 
 WORKDIR /app
 
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 RUN pip install --no-cache-dir uv
 
 COPY pyproject.toml uv.lock ./
@@ -17,14 +20,18 @@ RUN useradd --create-home --shell /bin/bash appuser
 COPY --from=builder /app/.venv /app/.venv
 
 COPY app/ ./app/
+COPY migrations/ ./migrations/
+COPY alembic.ini ./
 COPY pyproject.toml ./
 
 RUN chown -R appuser:appuser /app
 
 USER appuser
 
-ENV PYTHONPATH=/app
-ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH=/app \
+    PATH="/app/.venv/bin:$PATH" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 

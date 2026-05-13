@@ -1,4 +1,9 @@
-from app.schemas.department import DepartmentCreate, DepartmentDTO, DepartmentDetailsDTO, DepartmentUpdate
+from app.schemas.department import (
+    DepartmentCreate,
+    DepartmentDTO,
+    DepartmentDetailsDTO,
+    DepartmentUpdate,
+)
 from app.schemas.employee import AddEmployeeRequest, EmployeeDTO, AddEmployeeResponse
 
 __all__ = [

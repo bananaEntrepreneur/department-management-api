@@ -23,6 +23,10 @@ class DepartmentRepository:
         await self.db.refresh(department)
         return department
 
+    async def delete(self, department: Department) -> None:
+        await self.db.delete(department)
+        await self.db.commit()
+
     async def get_by_id(self, department_id: int) -> Department | None:
         result = await self.db.execute(
             select(Department).where(Department.id == department_id)
@@ -44,3 +48,11 @@ class DepartmentRepository:
             .order_by(Department.created_at, Department.name, Department.id)
         )
         return list(result.scalars().all())
+
+    async def get_descendants(self, department_id: int) -> list[Department]:
+        descendants: list[Department] = []
+        children = await self.get_children(department_id)
+        for child in children:
+            descendants.append(child)
+            descendants.extend(await self.get_descendants(child.id))
+        return descendants

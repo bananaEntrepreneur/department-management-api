@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.department import Department
 from app.repositories.department import DepartmentRepository
+from app.repositories.employee import EmployeeRepository
 from app.schemas.department import DepartmentDTO, DepartmentDetailsDTO, DepartmentUpdate
 from app.schemas.employee import EmployeeDTO
 
@@ -12,6 +15,7 @@ from app.schemas.employee import EmployeeDTO
 class DepartmentService:
     def __init__(self, db: AsyncSession) -> None:
         self.repository = DepartmentRepository(db)
+        self.employee_repository = EmployeeRepository(db)
 
     async def add_department(self, name: str, parent_id: int | None) -> Department:
         if parent_id is not None:
@@ -73,6 +77,59 @@ class DepartmentService:
             department.name = payload.name
 
         return await self.repository.save(department)
+
+    async def delete_department(
+        self,
+        department_id: int,
+        mode: Literal["cascade", "reassign"],
+        reassign_to_department_id: int | None = None,
+    ) -> None:
+        department = await self.repository.get_by_id(department_id)
+        if department is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Department not found",
+            )
+
+        if mode == "cascade":
+            descendants = await self.repository.get_descendants(department.id)
+            for descendant in reversed(descendants):
+                await self.employee_repository.delete_by_department_id(descendant.id)
+                await self.repository.delete(descendant)
+
+            await self.employee_repository.delete_by_department_id(department.id)
+            await self.repository.delete(department)
+            return
+
+        if reassign_to_department_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="reassign_to_department_id is required when mode=reassign",
+            )
+
+        if reassign_to_department_id == department_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Department cannot be reassigned to itself",
+            )
+
+        target_department = await self.repository.get_by_id(reassign_to_department_id)
+        if target_department is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Reassign department not found",
+            )
+
+        await self.employee_repository.reassign_department(
+            source_department_id=department.id,
+            target_department_id=target_department.id,
+        )
+
+        for child in await self.repository.get_children(department.id):
+            child.parent_id = department.parent_id
+            await self.repository.save(child)
+
+        await self.repository.delete(department)
 
     async def get_department_details(
         self,
